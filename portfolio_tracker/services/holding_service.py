@@ -63,9 +63,9 @@ def get_portfolio_summary(portfolio_name):
     total_market_value = 0.0
     total_unrealized_gain = 0.0
     for holding in holdings:
-        if holding.market_value is not None:
-            total_market_value += holding.market_value
-            total_unrealized_gain += holding.unrealized_gain
+        if holding.market_value() is not None:
+            total_market_value += holding.market_value()
+            total_unrealized_gain += holding.unrealized_gain()
 
     return {
         "portfolio": portfolio,

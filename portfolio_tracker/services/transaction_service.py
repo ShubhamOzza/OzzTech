@@ -65,9 +65,18 @@ def sell(portfolio_name, ticker, quantity, price_per_share):
 
 
 def get_transactions(portfolio):
-    return [t for t in transactions if t.portfolio == portfolio]
+    result = []
+    for trade in transactions:
+        if trade.portfolio == portfolio:
+            result.append(trade)
+    return result
 
 
 def clear_transactions(portfolio):
-    global transactions
-    transactions = [t for t in transactions if t.portfolio != portfolio]
+    remaining = []
+    for trade in transactions:
+        if trade.portfolio != portfolio:
+            remaining.append(trade)
+    transactions.clear()
+    for trade in remaining:
+        transactions.append(trade)

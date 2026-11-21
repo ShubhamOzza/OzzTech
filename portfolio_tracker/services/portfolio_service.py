@@ -13,7 +13,7 @@ from portfolio_tracker.services import holding_service, transaction_service
 logger = logging.getLogger(__name__)
 
 portfolios = {}
-selected_portfolio = None
+selection = {"name": None}
 
 
 def create_portfolio(name, strategy):
@@ -44,25 +44,23 @@ def list_portfolios():
 
 
 def select_portfolio(name):
-    global selected_portfolio
     portfolio = find_portfolio(name)
-    selected_portfolio = portfolio.name
+    selection["name"] = portfolio.name
     logger.info("Selected portfolio %s", portfolio.name)
     return portfolio
 
 
 def get_selected_portfolio():
-    return selected_portfolio
+    return selection["name"]
 
 
 def require_selected_portfolio():
-    if selected_portfolio is None:
+    if selection["name"] is None:
         raise NoPortfolioSelectedError("No portfolio is currently selected")
-    return selected_portfolio
+    return selection["name"]
 
 
 def delete_portfolio(name):
-    global selected_portfolio
     portfolio = find_portfolio(name)
     holdings = holding_service.get_holdings(portfolio.name)
     if holdings:
@@ -71,6 +69,6 @@ def delete_portfolio(name):
         )
     transaction_service.clear_transactions(portfolio)
     del portfolios[portfolio.name]
-    if selected_portfolio == portfolio.name:
-        selected_portfolio = None
+    if selection["name"] == portfolio.name:
+        selection["name"] = None
     logger.info("Deleted portfolio %s", portfolio.name)

@@ -84,8 +84,10 @@ def view_portfolios():
         return
     selected = portfolio_service.get_selected_portfolio()
     for portfolio in portfolios:
-        marker = " (selected)" if portfolio.name == selected else ""
-        print(f"- {portfolio.name}: {portfolio.strategy}{marker}")
+        if portfolio.name == selected:
+            print(f"- {portfolio.name}: {portfolio.strategy} (selected)")
+        else:
+            print(f"- {portfolio.name}: {portfolio.strategy}")
 
 
 def select_portfolio():
@@ -116,8 +118,8 @@ def view_selected_portfolio():
         )
         for h in holdings:
             price_text = format_price(h.current_price)
-            mv_text = format_price(h.market_value)
-            ug_text = format_price(h.unrealized_gain)
+            mv_text = format_price(h.market_value())
+            ug_text = format_price(h.unrealized_gain())
             print(
                 f"{h.asset.ticker:8} {h.quantity:>10.4f} ${h.average_cost:>11,.2f} "
                 f"{price_text:>12} {mv_text:>14} {ug_text:>14}"

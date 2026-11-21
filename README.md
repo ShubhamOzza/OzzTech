@@ -52,7 +52,7 @@ A command-line application for tracking personal investment portfolios, assets, 
    No. Only holdings with a quantity greater than zero are returned in the portfolio holdings list, while realized gains from sold positions remain in the portfolio totals.
 
 4. **How does the portfolio view handle an asset with no current price set?**
-   `Holding.market_value` and `Holding.unrealized_gain` return `None` when `current_price` is `None`. The portfolio view shows `"No price set"` for those fields and skips them when adding up total market value and unrealized gain.
+   `Holding.market_value()` and `Holding.unrealized_gain()` return `None` when `current_price` is `None`. The portfolio view shows `"No price set"` for those fields and skips them when adding up total market value and unrealized gain.
 
 5. **Which errors does the user see, and which are only written to the log?**
    Broken business rules (`TrackerError` subclasses) and non-numeric input prompts are shown directly to the user in plain language and logged at `WARNING`. Unexpected exceptions caught in `main()` show a short message to the user while the full traceback is written to `tracker.log` with `logger.exception`.

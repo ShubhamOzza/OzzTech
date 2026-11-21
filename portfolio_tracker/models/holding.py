@@ -5,13 +5,11 @@ class Holding:
         self.average_cost = average_cost
         self.current_price = current_price
 
-    @property
     def market_value(self):
         if self.current_price is None:
             return None
         return self.quantity * self.current_price
 
-    @property
     def unrealized_gain(self):
         if self.current_price is None:
             return None
