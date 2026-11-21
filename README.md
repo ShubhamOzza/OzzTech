@@ -127,7 +127,7 @@ python -m pytest -v
 
 ### Fresh In-Memory Database per Test
 
-In `portfolio_tracker/database.py`, the database engine is created inside `get_engine()` rather than at import time, and `transaction()` calls `get_engine()` whenever a service opens a transaction. In `tests/conftest.py`, the `empty_db` fixture creates a brand-new in-memory SQLite engine (`create_engine("sqlite://", poolclass=StaticPool)`), creates all tables on it with `database.Base.metadata.create_all(engine)`, and uses `monkeypatch.setattr(database, "get_engine", lambda: engine)` to swap in that in-memory engine for the duration of the test. It also resets the in-memory `price_store.current_prices` dictionary and `portfolio_service.selected_portfolio` before yielding, and disposes the engine after the test finishes.
+In `portfolio_tracker/database.py`, the database engine is created inside `get_engine()` rather than at import time, and `transaction()` calls `get_engine()` whenever a service opens a transaction. In `tests/conftest.py`, the `empty_db` fixture creates a brand-new in-memory SQLite engine (`create_engine("sqlite://", poolclass=StaticPool)`), creates all tables on it with `database.Base.metadata.create_all(engine)`, and uses `monkeypatch.setattr(database, "get_engine", lambda: engine)` to swap in that in-memory engine for the duration of the test. It also resets the in-memory `price_store.current_prices` and `portfolio_store.selection` dictionaries before yielding, and disposes the engine after the test finishes.
 
 This matters for three reasons:
 1. Running the test suite never adds fake deposits, portfolios, or trades to the real MySQL database.

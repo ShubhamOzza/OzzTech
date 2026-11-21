@@ -9,7 +9,7 @@ from portfolio_tracker import database
 # Imported so create_all() knows every table, as in main.py.
 from portfolio_tracker.models import account, asset, portfolio, transaction  # noqa: F401
 from portfolio_tracker.services import account_service, asset_service, portfolio_service
-from portfolio_tracker.storage import price_store
+from portfolio_tracker.storage import portfolio_store, price_store
 
 
 @pytest.fixture
@@ -20,7 +20,7 @@ def empty_db(monkeypatch):
     # The mock: for this test, "connect to the database" returns the in-memory one.
     monkeypatch.setattr(database, "get_engine", lambda: engine)
     monkeypatch.setattr(price_store, "current_prices", {})  # prices are stored in memory: start empty too
-    monkeypatch.setattr(portfolio_service, "selected_portfolio", None)
+    monkeypatch.setattr(portfolio_store, "selection", {"name": None})
     yield  # the test runs here
     engine.dispose()  # monkeypatch puts the real get_engine back on its own
 

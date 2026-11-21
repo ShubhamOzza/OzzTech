@@ -2,6 +2,8 @@ from sqlalchemy import select
 
 from portfolio_tracker.models.portfolio import Portfolio
 
+selection = {"name": None}
+
 
 def add_portfolio(session, portfolio):
     session.add(portfolio)
@@ -17,3 +19,12 @@ def get_all_portfolios(session):
 
 def delete_portfolio(session, portfolio):
     session.delete(portfolio)
+
+
+def get_selected_name():
+    return selection["name"]
+
+
+def set_selected_name(name):
+    selection["name"] = name
+

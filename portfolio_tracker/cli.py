@@ -89,8 +89,10 @@ def view_portfolios():
         return
     selected = portfolio_service.get_selected_portfolio()
     for portfolio in portfolios:
-        marker = " (selected)" if portfolio.name == selected else ""
-        print(f"- {portfolio.name}: {portfolio.strategy}{marker}")
+        if portfolio.name == selected:
+            print(f"- {portfolio.name}: {portfolio.strategy} (selected)")
+        else:
+            print(f"- {portfolio.name}: {portfolio.strategy}")
 
 
 def select_portfolio():

@@ -14,8 +14,6 @@ from portfolio_tracker.storage import portfolio_store, transaction_store
 
 logger = logging.getLogger(__name__)
 
-selected_portfolio = None
-
 
 def create_portfolio(name, strategy):
     clean_name = name.strip()
@@ -47,26 +45,25 @@ def list_portfolios():
 
 
 def select_portfolio(name):
-    global selected_portfolio
     with database.transaction() as session:
         portfolio = find_portfolio(session, name)
-    selected_portfolio = portfolio.name
+    portfolio_store.set_selected_name(portfolio.name)
     logger.info("Selected portfolio %s", portfolio.name)
     return portfolio
 
 
 def get_selected_portfolio():
-    return selected_portfolio
+    return portfolio_store.get_selected_name()
 
 
 def require_selected_portfolio():
-    if selected_portfolio is None:
+    selected = portfolio_store.get_selected_name()
+    if selected is None:
         raise NoPortfolioSelectedError("No portfolio is currently selected")
-    return selected_portfolio
+    return selected
 
 
 def delete_portfolio(name):
-    global selected_portfolio
     with database.transaction() as session:
         portfolio = find_portfolio(session, name)
         holdings, _ = holding_service.calculate_portfolio_positions(session, portfolio)
@@ -76,6 +73,6 @@ def delete_portfolio(name):
             )
         transaction_store.delete_transactions(session, portfolio)
         portfolio_store.delete_portfolio(session, portfolio)
-    if selected_portfolio == portfolio.name:
-        selected_portfolio = None
+    if portfolio_store.get_selected_name() == portfolio.name:
+        portfolio_store.set_selected_name(None)
     logger.info("Deleted portfolio %s", portfolio.name)
