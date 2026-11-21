@@ -1,5 +1,6 @@
 import logging
 
+from portfolio_tracker import database
 from portfolio_tracker.errors import (
     DuplicateError,
     InvalidInputError,
@@ -8,11 +9,11 @@ from portfolio_tracker.errors import (
     PortfolioNotEmptyError,
 )
 from portfolio_tracker.models.portfolio import Portfolio
-from portfolio_tracker.services import holding_service, transaction_service
+from portfolio_tracker.services import holding_service
+from portfolio_tracker.storage import portfolio_store, transaction_store
 
 logger = logging.getLogger(__name__)
 
-portfolios = {}
 selected_portfolio = None
 
 
@@ -23,29 +24,32 @@ def create_portfolio(name, strategy):
         raise InvalidInputError("Portfolio name cannot be empty")
     if not clean_strategy:
         raise InvalidInputError("Strategy description cannot be empty")
-    if clean_name in portfolios:
-        raise DuplicateError(f"Portfolio '{clean_name}' already exists")
-    portfolio = Portfolio(clean_name, clean_strategy)
-    portfolios[clean_name] = portfolio
+    with database.transaction() as session:
+        if portfolio_store.get_portfolio(session, clean_name) is not None:
+            raise DuplicateError(f"Portfolio '{clean_name}' already exists")
+        portfolio = Portfolio(name=clean_name, strategy=clean_strategy)
+        portfolio_store.add_portfolio(session, portfolio)
     logger.info("Created portfolio %s", portfolio.name)
     return portfolio
 
 
-def find_portfolio(name):
+def find_portfolio(session, name):
     clean_name = name.strip()
-    try:
-        return portfolios[clean_name]
-    except KeyError:
-        raise NotFoundError(f"No portfolio named '{clean_name}'") from None
+    portfolio = portfolio_store.get_portfolio(session, clean_name)
+    if portfolio is None:
+        raise NotFoundError(f"No portfolio named '{clean_name}'")
+    return portfolio
 
 
 def list_portfolios():
-    return list(portfolios.values())
+    with database.transaction() as session:
+        return portfolio_store.get_all_portfolios(session)
 
 
 def select_portfolio(name):
     global selected_portfolio
-    portfolio = find_portfolio(name)
+    with database.transaction() as session:
+        portfolio = find_portfolio(session, name)
     selected_portfolio = portfolio.name
     logger.info("Selected portfolio %s", portfolio.name)
     return portfolio
@@ -63,14 +67,15 @@ def require_selected_portfolio():
 
 def delete_portfolio(name):
     global selected_portfolio
-    portfolio = find_portfolio(name)
-    holdings = holding_service.get_holdings(portfolio.name)
-    if holdings:
-        raise PortfolioNotEmptyError(
-            f"Cannot delete portfolio '{portfolio.name}' while it still holds shares"
-        )
-    transaction_service.clear_transactions(portfolio)
-    del portfolios[portfolio.name]
+    with database.transaction() as session:
+        portfolio = find_portfolio(session, name)
+        holdings, _ = holding_service.calculate_portfolio_positions(session, portfolio)
+        if holdings:
+            raise PortfolioNotEmptyError(
+                f"Cannot delete portfolio '{portfolio.name}' while it still holds shares"
+            )
+        transaction_store.delete_transactions(session, portfolio)
+        portfolio_store.delete_portfolio(session, portfolio)
     if selected_portfolio == portfolio.name:
         selected_portfolio = None
     logger.info("Deleted portfolio %s", portfolio.name)

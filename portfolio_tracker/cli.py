@@ -1,3 +1,4 @@
+from decimal import Decimal, InvalidOperation
 import logging
 
 from portfolio_tracker.errors import TrackerError
@@ -35,9 +36,13 @@ def ask_number(prompt):
     while True:
         text = input(prompt).strip()
         try:
-            return float(text)
-        except ValueError:
-            print(f"'{text}' is not a number, try again.")
+            number = Decimal(text)
+        except InvalidOperation:
+            number = None
+        # Decimal also accepts "nan" and "inf", which are not usable amounts.
+        if number is not None and number.is_finite():
+            return number
+        print(f"'{text}' is not a number, try again.")
 
 
 def format_price(value):

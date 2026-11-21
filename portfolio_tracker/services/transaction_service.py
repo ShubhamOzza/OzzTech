@@ -1,6 +1,13 @@
+from datetime import date
+from decimal import Decimal
 import logging
 
-from portfolio_tracker.errors import InsufficientSharesError, InvalidAmountError
+from portfolio_tracker import database
+from portfolio_tracker.errors import (
+    InsufficientSharesError,
+    InvalidAmountError,
+    NoPortfolioSelectedError,
+)
 from portfolio_tracker.models.transaction import Transaction
 from portfolio_tracker.services import (
     account_service,
@@ -8,66 +15,83 @@ from portfolio_tracker.services import (
     holding_service,
     portfolio_service,
 )
+from portfolio_tracker.storage import transaction_store
 
 logger = logging.getLogger(__name__)
 
-transactions = []
-
 
 def require_positive(label, value):
-    if value <= 0:
+    if value <= Decimal("0"):
         raise InvalidAmountError(f"{label} must be greater than zero (got {value})")
 
 
 def buy(portfolio_name, ticker, quantity, price_per_share):
-    portfolio = portfolio_service.find_portfolio(portfolio_name)
-    asset = asset_service.find_asset(ticker)
-    require_positive("Quantity", quantity)
-    require_positive("Price per share", price_per_share)
+    if portfolio_name is None:
+        raise NoPortfolioSelectedError("No portfolio is currently selected")
+    # One transaction for the whole trade: the debit and the trade record succeed or fail together.
+    with database.transaction() as session:
+        portfolio = portfolio_service.find_portfolio(session, portfolio_name)
+        asset = asset_service.find_asset(session, ticker)
+        require_positive("Quantity", quantity)
+        require_positive("Price per share", price_per_share)
 
-    account_service.debit(quantity * price_per_share)
-    trade = Transaction(portfolio, asset, "buy", quantity, price_per_share)
-    transactions.append(trade)
+        rounded_qty = round(quantity, 4)
+        rounded_price = round(price_per_share, 4)
+        account_service.debit(session, rounded_qty * rounded_price)
+        trade = Transaction(
+            portfolio=portfolio,
+            asset=asset,
+            side="buy",
+            quantity=rounded_qty,
+            price_per_share=rounded_price,
+            trade_date=date.today(),
+        )
+        transaction_store.add_transaction(session, trade)
     logger.info(
         "Bought %s %s at %.2f in %s",
-        quantity,
+        rounded_qty,
         asset.ticker,
-        price_per_share,
+        rounded_price,
         portfolio.name,
     )
     return trade
 
 
 def sell(portfolio_name, ticker, quantity, price_per_share):
-    portfolio = portfolio_service.find_portfolio(portfolio_name)
-    asset = asset_service.find_asset(ticker)
-    require_positive("Quantity", quantity)
-    if price_per_share < 0:
-        raise InvalidAmountError(f"Price per share must be zero or more (got {price_per_share})")
+    if portfolio_name is None:
+        raise NoPortfolioSelectedError("No portfolio is currently selected")
+    with database.transaction() as session:
+        portfolio = portfolio_service.find_portfolio(session, portfolio_name)
+        asset = asset_service.find_asset(session, ticker)
+        require_positive("Quantity", quantity)
+        if price_per_share < Decimal("0"):
+            raise InvalidAmountError(
+                f"Price per share must be zero or more (got {price_per_share})"
+            )
 
-    held = holding_service.get_quantity_held(portfolio.name, asset.ticker)
-    if quantity > held:
-        raise InsufficientSharesError(
-            f"Cannot sell {quantity} {asset.ticker}; only {held} held in '{portfolio.name}'"
+        rounded_qty = round(quantity, 4)
+        rounded_price = round(price_per_share, 4)
+        held = holding_service.get_quantity_held(session, portfolio, asset.ticker)
+        if rounded_qty > held:
+            raise InsufficientSharesError(
+                f"Cannot sell {rounded_qty} {asset.ticker}; only {held} held in '{portfolio.name}'"
+            )
+
+        account_service.credit(session, rounded_qty * rounded_price)
+        trade = Transaction(
+            portfolio=portfolio,
+            asset=asset,
+            side="sell",
+            quantity=rounded_qty,
+            price_per_share=rounded_price,
+            trade_date=date.today(),
         )
-
-    account_service.credit(quantity * price_per_share)
-    trade = Transaction(portfolio, asset, "sell", quantity, price_per_share)
-    transactions.append(trade)
+        transaction_store.add_transaction(session, trade)
     logger.info(
         "Sold %s %s at %.2f in %s",
-        quantity,
+        rounded_qty,
         asset.ticker,
-        price_per_share,
+        rounded_price,
         portfolio.name,
     )
     return trade
-
-
-def get_transactions(portfolio):
-    return [t for t in transactions if t.portfolio == portfolio]
-
-
-def clear_transactions(portfolio):
-    global transactions
-    transactions = [t for t in transactions if t.portfolio != portfolio]

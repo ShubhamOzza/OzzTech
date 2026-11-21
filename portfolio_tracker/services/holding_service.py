@@ -1,15 +1,19 @@
+from decimal import Decimal
+
+from portfolio_tracker import database
 from portfolio_tracker.models.holding import Holding
-from portfolio_tracker.services import portfolio_service, price_service, transaction_service
+from portfolio_tracker.services import portfolio_service, price_service
+from portfolio_tracker.storage import transaction_store
 
 
-def _calculate_positions(portfolio):
+def calculate_portfolio_positions(session, portfolio):
     positions = {}
-    realized_gain = 0.0
+    realized_gain = Decimal("0")
 
-    for trade in transaction_service.get_transactions(portfolio):
+    for trade in transaction_store.get_transactions(session, portfolio):
         ticker = trade.asset.ticker
         if trade.side == "buy":
-            if ticker not in positions or positions[ticker]["quantity"] == 0:
+            if ticker not in positions or positions[ticker]["quantity"] == Decimal("0"):
                 positions[ticker] = {
                     "asset": trade.asset,
                     "quantity": trade.quantity,
@@ -30,7 +34,7 @@ def _calculate_positions(portfolio):
 
     holdings = []
     for ticker, pos in positions.items():
-        if pos["quantity"] > 0:
+        if pos["quantity"] > Decimal("0"):
             current_price = price_service.get_price(ticker)
             holdings.append(
                 Holding(
@@ -43,25 +47,28 @@ def _calculate_positions(portfolio):
     return holdings, realized_gain
 
 
-def get_holdings(portfolio_name):
-    portfolio = portfolio_service.find_portfolio(portfolio_name)
-    holdings, _ = _calculate_positions(portfolio)
-    return holdings
-
-
-def get_quantity_held(portfolio_name, ticker):
-    for holding in get_holdings(portfolio_name):
+def get_quantity_held(session, portfolio, ticker):
+    holdings, _ = calculate_portfolio_positions(session, portfolio)
+    for holding in holdings:
         if holding.asset.ticker == ticker:
             return holding.quantity
-    return 0
+    return Decimal("0")
+
+
+def get_holdings(portfolio_name):
+    with database.transaction() as session:
+        portfolio = portfolio_service.find_portfolio(session, portfolio_name)
+        holdings, _ = calculate_portfolio_positions(session, portfolio)
+        return holdings
 
 
 def get_portfolio_summary(portfolio_name):
-    portfolio = portfolio_service.find_portfolio(portfolio_name)
-    holdings, realized_gain = _calculate_positions(portfolio)
+    with database.transaction() as session:
+        portfolio = portfolio_service.find_portfolio(session, portfolio_name)
+        holdings, realized_gain = calculate_portfolio_positions(session, portfolio)
 
-    total_market_value = 0.0
-    total_unrealized_gain = 0.0
+    total_market_value = Decimal("0")
+    total_unrealized_gain = Decimal("0")
     for holding in holdings:
         if holding.market_value is not None:
             total_market_value += holding.market_value

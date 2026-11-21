@@ -1,39 +1,51 @@
+from decimal import Decimal
 import logging
 
+from portfolio_tracker import database
 from portfolio_tracker.errors import InsufficientFundsError, InvalidAmountError
-from portfolio_tracker.models.account import Account
+from portfolio_tracker.storage import account_store
 
 logger = logging.getLogger(__name__)
 
-account = Account()
-
 
 def require_positive(label, value):
-    if value <= 0:
+    if value <= Decimal("0"):
         raise InvalidAmountError(f"{label} must be greater than zero (got {value})")
 
 
 def get_cash_balance():
-    return account.cash_balance
+    with database.transaction() as session:
+        return account_store.get_cash_balance(session)
 
 
 def deposit(amount):
     require_positive("Deposit amount", amount)
-    account.cash_balance += amount
-    logger.info("Deposited %.2f; balance is now %.2f", amount, account.cash_balance)
-    return account.cash_balance
+    rounded = round(amount, 2)
+    with database.transaction() as session:
+        new_balance = round(account_store.get_cash_balance(session) + rounded, 2)
+        account_store.set_cash_balance(session, new_balance)
+    logger.info("Deposited %.2f; balance is now %.2f", rounded, new_balance)
+    return new_balance
 
 
-def debit(amount):
+def debit(session, amount):
     require_positive("Amount", amount)
-    if amount > account.cash_balance:
+    rounded = round(amount, 2)
+    balance = account_store.get_cash_balance(session)
+    if rounded > balance:
         raise InsufficientFundsError(
-            f"Insufficient funds: need {amount:.2f}, available {account.cash_balance:.2f}"
+            f"Insufficient funds: need {rounded:.2f}, available {balance:.2f}"
         )
-    account.cash_balance -= amount
+    new_balance = round(balance - rounded, 2)
+    account_store.set_cash_balance(session, new_balance)
+    return new_balance
 
 
-def credit(amount):
-    if amount < 0:
+def credit(session, amount):
+    if amount < Decimal("0"):
         raise InvalidAmountError(f"Amount cannot be negative (got {amount})")
-    account.cash_balance += amount
+    rounded = round(amount, 2)
+    balance = account_store.get_cash_balance(session)
+    new_balance = round(balance + rounded, 2)
+    account_store.set_cash_balance(session, new_balance)
+    return new_balance
